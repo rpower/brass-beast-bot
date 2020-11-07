@@ -1,7 +1,6 @@
 import mysql.connector
 import discord
 import asyncio
-from commands import commands_list
 import json
 import os
 import logging
@@ -9,47 +8,26 @@ import datetime
 
 
 class ScheduleBot(discord.Client):
-    def __init__(self):
-        # Logging
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s]: %(message)s')
-        handler = logging.FileHandler('bot.log')
-        handler.setFormatter(formatter)
-        self.logger = logging.getLogger(__name__)
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
-
-        # Credentials
-        self.credentials = credentials
-
-        # Database
-        self.database = mysql.connector.connect(
-            host=credentials['sql_details']['host'],
-            user=credentials['sql_details']['username'],
-            passwd=credentials['sql_details']['pw'],
-            database=credentials['sql_details']['db_name']
-        )
-
-        super().__init__()
 
     async def on_ready(self):
-        self.logger.info('Bot is running.')
-        self.logger.info(f'Logged in as: "{self.user}"')
+        logger.info('Bot is running.')
+        logger.info(f'Logged in as: "{self.user}"')
         for server in self.guilds:
-            self.logger.info(f'Logged into server: "{server.name}" (id: {server.id}, members: {server.member_count})')
+            logger.info(f'Logged into server: "{server.name}" (id: {server.id}, members: {server.member_count})')
         await self.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!brassbeast help"))
 
     async def on_server_join(self, server):
-        self.logger.info(f'Joined new server: "{server.name}" (id: {server.id}, members: {server.member_count})')
+        logger.info(f'Joined new server: "{server.name}" (id: {server.id}, members: {server.member_count})')
 
     def db_insert(self, sql, values):
-        mycursor = self.database.cursor()
+        mycursor = database.cursor()
         mycursor.execute(f"""set @@session.time_zone = '{credentials['sql_details']['time_zone']}'""")
         mycursor.execute(sql, values)
-        self.database.commit()
+        database.commit()
         mycursor.close()
 
     def db_select(self, sql, values):
-        mycursor = self.database.cursor()
+        mycursor = database.cursor()
         mycursor.execute(f"""set @@session.time_zone = '{credentials['sql_details']['time_zone']}'""")
         mycursor.execute(sql, values)
         result = mycursor.fetchall()
@@ -67,20 +45,24 @@ class ScheduleBot(discord.Client):
         bot_message_prefix = '!brassbeast'
         if message.content.startswith(bot_message_prefix):
             args = message.content[len(bot_message_prefix) + 1:].split(' ')
-            command = commands_list.get(args[0])
-            if command is not None:
-                await command(self, args, message)
+            command = args[0]
+            if command == 'help':
+                help_message = (':robot: **Brass Beast Heavy**\n\n'
+                                'Brass Beast Heavy is firing backwards into spawn.\n'
+                                'More information: https://github.com/rpower/discord-server-logs')
+                logger.info(f'Listed help message in server {message.guild.id}')
+                await message.channel.send(help_message)
             else:
-                bot.logger.info(f'Invalid command in server {message.guild.id}. Attempted message: "{message.content}"')
+                logger.info(f'Invalid command in server {message.guild.id}. Attempted message: "{message.content}"')
 
         # Log to server
         current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         sql = f"""
-        insert into {bot.credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
+        insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
         """
         val = (current_time, message.guild.id, 'message', message.author.id, message.author.display_name, message.channel.id)
-        bot.logger.info(f'Logged message in server {message.guild.id}')
-        bot.db_insert(sql, val)
+        logger.info(f'Logged message in server {message.guild.id}')
+        self.db_insert(sql, val)
 
     async def on_voice_state_update(self, member, before, after):
         # Don't listen to other bots
@@ -92,35 +74,35 @@ class ScheduleBot(discord.Client):
             # Log to server
             current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
             sql = f"""
-                insert into {bot.credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
+                insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
                 """
             val = (current_time, after.channel.guild.id, 'voice', member.id, member.display_name, after.channel.id)
-            bot.logger.info(f'Logged voice in server {after.channel.guild.id}')
-            bot.db_insert(sql, val)
+            logger.info(f'Logged voice in server {after.channel.guild.id}')
+            self.db_insert(sql, val)
 
     async def on_member_join(self, member):
         # Don't listen to other bots
         if member.bot:
-            return
+           return
 
         # Log to server
         current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         sql = f"""
-            insert into {bot.credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
+            insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
             """
         val = (current_time, member.guild.id, 'join', member.id, member.display_name, None)
-        bot.logger.info(f'Logged join to server {member.guild.id}')
-        bot.db_insert(sql, val)
+        logger.info(f'Logged join to server {member.guild.id}')
+        self.db_insert(sql, val)
 
         # If Brass Beast server or sandbox server
-        allow_list_servers = bot.credentials['allow_list_servers']
+        allow_list_servers = credentials['allow_list_servers']
         allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
         if member.guild.id in allow_list_servers:
             # Send message in channel
             join_notification_channel_id = allow_list_servers[member.guild.id]['channel_id']
             join_notification_channel = self.get_channel(join_notification_channel_id)
             if join_notification_channel == None:
-                bot.logger.info(f'Trying to log new member joining. Could not find channel {join_notification_channel_id} in server {member.guild.id}')
+                logger.info(f'Trying to log new member joining. Could not find channel {join_notification_channel_id} in server {member.guild.id}')
             else:
                 embed = discord.Embed(color = 12745742, description = f'{member.mention} {member}')
                 embed.set_author(name = 'Member joined', icon_url = member.avatar_url)
@@ -135,16 +117,36 @@ class ScheduleBot(discord.Client):
             # Give role
             new_member_role = member.guild.get_role(allow_list_servers[member.guild.id]['role_id'])
             if new_member_role == None:
-                bot.logger.info(f'Trying to assign new member role. Could not find role in server {member.guild.id}')
+                logger.info(f'Trying to assign new member role. Could not find role in server {member.guild.id}')
             else:
                 await member.add_roles(new_member_role)
 
 if os.path.isfile('credentials.json'):
     with open('credentials.json') as credentials_file:
+        intents = discord.Intents.default()
+        intents.members = True
+
         credentials = json.loads(credentials_file.read())
-        bot = ScheduleBot()
+
+        # Logging
+        formatter = logging.Formatter('%(asctime)s [%(levelname)s]: %(message)s')
+        handler = logging.FileHandler('bot.log')
+        handler.setFormatter(formatter)
+        logger = logging.getLogger(__name__)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+
+        # Database
+        database = mysql.connector.connect(
+            host=credentials['sql_details']['host'],
+            user=credentials['sql_details']['username'],
+            passwd=credentials['sql_details']['pw'],
+            database=credentials['sql_details']['db_name']
+        )
+
+        bot = ScheduleBot(intents=intents)
         application = bot
         bot.run(credentials['discord']['bot_token'])
 else:
-    self.logger.info(f'Could not find credentials.json')
+    logger.info(f'Could not find credentials.json')
 
