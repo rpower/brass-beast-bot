@@ -5,6 +5,7 @@ import json
 import os
 import logging
 import datetime
+import re
 
 
 class ScheduleBot(discord.Client):
@@ -52,6 +53,133 @@ class ScheduleBot(discord.Client):
                                 'More information: https://github.com/rpower/discord-server-logs')
                 logger.info(f'Listed help message in server {message.guild.id}')
                 await message.channel.send(help_message)
+            elif command == 'testsend':
+                # If Brass Beast server or sandbox server
+                allow_list_servers = credentials['allow_list_servers']
+                allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
+                if message.guild.id in allow_list_servers:
+                    if message.channel.id != allow_list_servers[message.guild.id]['reaction_channel']:
+                        return
+
+                list_of_relevant_roles = {
+                    'Among Us': '🔪',
+                    'Apex Legends': '🤖',
+                    'Board Gamers': '🎲',
+                    'Minecraft': '🪓'
+                }
+                server_role_list = message.guild.roles
+                server_role_name_list = [x.name for x in server_role_list]
+
+                roles_to_add_to_description = []
+                relevant_reactions = []
+
+                for server_role in server_role_list:
+                    for relevant_role in list_of_relevant_roles.keys():
+                        if relevant_role in server_role.name:
+                            roles_to_add_to_description.append(list_of_relevant_roles[relevant_role] + ' ' + server_role.mention)
+                            relevant_reactions.append(list_of_relevant_roles[relevant_role])
+
+                roles_to_add_to_description = '\n'.join(roles_to_add_to_description)
+
+                description = 'React to this message for roles\n\n' + roles_to_add_to_description
+                embed = discord.Embed(color=12745742, description=description)
+                embed.set_author(name='React for roles')
+                embed.set_footer(text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                new_message = await message.channel.send(embed=embed)
+
+                # Add reactions to original message
+                for emoji in relevant_reactions:
+                    await new_message.add_reaction(emoji)
+
+                # Delete original message
+                await message.delete()
+            elif command == 'addrole':
+                content = " ".join(args[1:])
+                role_emoji = content[0]
+                role_name = content[2:]
+
+                # Create role
+                await message.guild.create_role(name=role_name)
+                newly_created_role = discord.utils.get(message.guild.roles, name=role_name)
+                # Look for role react main message
+                fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
+                if fetchMessage.embeds[0].author.name == 'React for roles':
+                    role_react_message_id = fetchMessage.id
+                    role_react_message = await message.channel.fetch_message(role_react_message_id)
+                    role_react_message_contents = role_react_message.embeds[0].description
+
+                    original_message_contents = role_react_message_contents.split('\n')[:2]
+                    roles_in_message = role_react_message_contents.split('\n')[2:]
+                    roles_in_message.append(role_emoji + ' ' + newly_created_role.mention)
+
+                    new_description = original_message_contents + roles_in_message
+                    new_description = '\n'.join(new_description)
+                    embed = discord.Embed(color=12745742, description=new_description)
+                    embed.set_author(name='React for roles')
+                    embed.set_footer(
+                        text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                    await role_react_message.edit(embed=embed)
+
+                    # Add reaction
+                    await role_react_message.add_reaction(role_emoji)
+
+                    # Delete original message
+                    await message.delete()
+            elif command == 'removerole':
+                role_name_to_delete = " ".join(args[1:])
+
+                list_of_protected_roles = [
+                    'Admins',
+                    'Heavies',
+                    'Brass Beast Heavy',
+                    'Pancake',
+                    'Server Booster',
+                    'Randos',
+                    'Event Scheduler',
+                    '@everyone'
+                ]
+                # If role to delete is in protected list, then ignore
+                if role_name_to_delete in list_of_protected_roles:
+                    return
+
+                # If person making request is not admin, then ignore
+                if not message.author.top_role.permissions.administrator:
+                    return
+
+                # Look for role react main message
+                fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
+                if fetchMessage.embeds[0].author.name == 'React for roles':
+                    role_react_message_id = fetchMessage.id
+                    role_react_message = await message.channel.fetch_message(role_react_message_id)
+                    role_react_message_contents = role_react_message.embeds[0].description
+
+                    original_message_contents = role_react_message_contents.split('\n')[:1]
+                    roles_in_message = role_react_message_contents.split('\n')[1:]
+
+                    list_of_roles = message.guild.roles
+                    for role in list_of_roles:
+                        if role.name == role_name_to_delete:
+                            role_id_to_remove = str(role.id)
+                            # Remove role
+                            await role.delete()
+                            for role in roles_in_message:
+                                if role_id_to_remove in role:
+                                    roles_in_message.remove(role)
+
+                                    # Clear reactions
+                                    emoji_to_remove = role[0]
+                                    await role_react_message.clear_reaction(emoji_to_remove)
+
+                    new_description = original_message_contents + roles_in_message
+                    new_description = '\n'.join(new_description)
+                    embed = discord.Embed(color=12745742, description=new_description)
+                    embed.set_author(name='React for roles')
+                    embed.set_footer(
+                        text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                    await role_react_message.edit(embed=embed)
+
+                # Delete original message
+                await message.delete()
             else:
                 logger.info(f'Invalid command in server {message.guild.id}. Attempted message: "{message.content}"')
 
@@ -120,6 +248,54 @@ class ScheduleBot(discord.Client):
                 logger.info(f'Trying to assign new member role. Could not find role in server {member.guild.id}')
             else:
                 await member.add_roles(new_member_role)
+
+    async def reaction_role_change(self, payload, add_or_remove):
+        channel = await self.fetch_channel(payload.channel_id)
+        message = await channel.fetch_message(payload.message_id)
+        user = await self.fetch_user(payload.user_id)
+        emoji = payload.emoji
+        # Don't listen to other bots
+        if user.bot:
+            return
+
+        # If Brass Beast server or sandbox server
+        allow_list_servers = credentials['allow_list_servers']
+        allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
+        if message.guild.id in allow_list_servers:
+            if message.channel.id != allow_list_servers[message.guild.id]['reaction_channel']:
+                return
+
+        # Look for role react main message
+        fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
+        if fetchMessage.embeds[0].author.name == 'React for roles':
+            role_react_message_id = fetchMessage.id
+
+            # Ignore reacts on messages which aren't the role react message
+            if message.id != role_react_message_id:
+                return
+
+            role_react_message = await message.channel.fetch_message(role_react_message_id)
+            role_react_message_contents = role_react_message.embeds[0].description
+
+            original_message_contents = role_react_message_contents.split('\n')[:1]
+            roles_in_message = role_react_message_contents.split('\n')[1:]
+
+            for role in roles_in_message:
+                if str(emoji) in role:
+                    role_id = int(re.search(r'\d+', role).group(0))
+
+                    member = await channel.guild.fetch_member(payload.user_id)
+                    relevant_role = member.guild.get_role(role_id)
+                    if add_or_remove == 'add':
+                        await member.add_roles(relevant_role)
+                    elif add_or_remove == 'remove':
+                        await member.remove_roles(relevant_role)
+
+    async def on_raw_reaction_add(self, payload):
+        await self.reaction_role_change(payload, 'add')
+
+    async def on_raw_reaction_remove(self, payload):
+        await self.reaction_role_change(payload, 'remove')
 
 if os.path.isfile('credentials.json'):
     with open('credentials.json') as credentials_file:
