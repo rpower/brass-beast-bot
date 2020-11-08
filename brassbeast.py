@@ -50,7 +50,7 @@ class ScheduleBot(discord.Client):
             if command == 'help':
                 help_message = (':robot: **Brass Beast Heavy**\n\n'
                                 'Brass Beast Heavy is firing backwards into spawn.\n'
-                                'More information: https://github.com/rpower/discord-server-logs')
+                                'More information: https://github.com/rpower/brass-beast-bot')
                 logger.info(f'Listed help message in server {message.guild.id}')
                 await message.channel.send(help_message)
             elif command == 'testsend':
