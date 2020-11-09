@@ -180,6 +180,24 @@ class ScheduleBot(discord.Client):
 
                 # Delete original message
                 await message.delete()
+            elif command == 'testdm':
+                dm_message = ('Hey! :wave:\n\n'
+                              'This is just a friendly automated message from one of the bots on the **TF2 Brass Beasts Heavies** Discord server. In the last 2 months you haven\'t used any of the text chats or the voice chats.\n\n'
+                              'You haven\'t done anything wrong and are still well-loved but we try to keep the member list in the server up-to-date. If you want to stay in the server drop a message in one of the text chats or use one of the voice chats, we\'re reviewing the member list in a couple of weeks so you\'ve got plenty of time!\n\n'
+                              '~ :robot:  Brass Beast Heavy Bot')
+
+                # Delete original message
+                await message.delete()
+
+                # Send DMs
+                list_of_members_to_dm = args[1:]
+                for member_to_dm in list_of_members_to_dm:
+                    member_to_dm_id = int(re.search(r'\d+', member_to_dm).group(0))
+                    member_to_dm_user = await self.fetch_user(member_to_dm_id)
+                    # Don't try to send DMs to bots
+                    if not member_to_dm_user.bot:
+                        logger.info(f'Sent DM to {member_to_dm_user}')
+                        await member_to_dm_user.send(dm_message)
             else:
                 logger.info(f'Invalid command in server {message.guild.id}. Attempted message: "{message.content}"')
 
