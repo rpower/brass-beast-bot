@@ -180,7 +180,7 @@ class ScheduleBot(discord.Client):
 
                 # Delete original message
                 await message.delete()
-            elif command == 'testdm':
+            elif command == 'sendmemberdm':
                 dm_message = ('Hey! :wave:\n\n'
                               'This is just a friendly automated message from one of the bots on the **TF2 Brass Beasts Heavies** Discord server. In the last 2 months you haven\'t used any of the text chats or the voice chats.\n\n'
                               'You haven\'t done anything wrong and are still well-loved but we try to keep the member list in the server up-to-date. If you want to stay in the server drop a message in one of the text chats or use one of the voice chats, we\'re reviewing the member list in a couple of weeks so you\'ve got plenty of time!\n\n'
