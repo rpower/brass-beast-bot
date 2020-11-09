@@ -53,7 +53,7 @@ class ScheduleBot(discord.Client):
                                 'More information: https://github.com/rpower/brass-beast-bot')
                 logger.info(f'Listed help message in server {message.guild.id}')
                 await message.channel.send(help_message)
-            elif command == 'testsend':
+            elif command == 'rolesmessage':
                 # If Brass Beast server or sandbox server
                 allow_list_servers = credentials['allow_list_servers']
                 allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
