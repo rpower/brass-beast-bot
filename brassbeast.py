@@ -120,6 +120,21 @@ class ScheduleBot(discord.Client):
                         text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
                     await role_react_message.edit(embed=embed)
 
+                    # Add text channel
+                    # Convert role name into text channel name
+                    new_role_channel_name = role_name.lower().replace(' ', '_')
+
+                    # Get 'Vidya Game' text channel category
+                    new_role_channel_category_name = 'Vidya Games'
+                    new_role_channel_category = discord.utils.get(message.guild.categories, name=new_role_channel_category_name)
+
+                    # Create text channel
+                    overwrites = {
+                        message.guild.default_role: discord.PermissionOverwrite(read_messages=False),
+                        newly_created_role: discord.PermissionOverwrite(read_messages=True)
+                    }
+                    await message.guild.create_text_channel(new_role_channel_name, category=new_role_channel_category, overwrites=overwrites)
+
                     # Add reaction
                     await role_react_message.add_reaction(role_emoji)
 
@@ -307,6 +322,7 @@ class ScheduleBot(discord.Client):
                     if add_or_remove == 'add':
                         await member.add_roles(relevant_role)
                     elif add_or_remove == 'remove':
+                        # Hello
                         await member.remove_roles(relevant_role)
 
     async def on_raw_reaction_add(self, payload):
