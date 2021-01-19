@@ -322,7 +322,6 @@ class ScheduleBot(discord.Client):
                     if add_or_remove == 'add':
                         await member.add_roles(relevant_role)
                     elif add_or_remove == 'remove':
-                        # Hello
                         await member.remove_roles(relevant_role)
 
     async def on_raw_reaction_add(self, payload):
@@ -330,6 +329,23 @@ class ScheduleBot(discord.Client):
 
     async def on_raw_reaction_remove(self, payload):
         await self.reaction_role_change(payload, 'remove')
+
+    async def on_invite_create(self, payload):
+        invite_creator = payload.inviter
+        invite_code = payload.id
+
+        # If Brass Beast server or sandbox server
+        allow_list_servers = credentials['allow_list_servers']
+        allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
+        if payload.guild.id in allow_list_servers:
+            # Send message in channel
+            invite_notification_channel_id = allow_list_servers[payload.guild.id]['channel_id']
+            invite_notification_channel = self.get_channel(invite_notification_channel_id)
+            embed = discord.Embed(color=255, description=f'{invite_creator.mention} {invite_creator}')
+            embed.set_author(name='Invite created', icon_url=invite_creator.avatar_url)
+            embed.set_thumbnail(url=invite_creator.avatar_url)
+            embed.set_footer(text=f'Invite ID: {invite_code}')
+            await invite_notification_channel.send(embed=embed)
 
 if os.path.isfile('credentials.json'):
     with open('credentials.json') as credentials_file:
