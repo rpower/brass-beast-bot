@@ -153,16 +153,14 @@ class ScheduleBot(discord.Client):
                     'Event Scheduler',
                     '@everyone'
                 ]
+
                 # If role to delete is in protected list, then ignore
                 if role_name_to_delete in list_of_protected_roles:
                     return
 
-                # If person making request is not admin, then ignore
-                if not message.author.top_role.permissions.administrator:
-                    return
-
                 # Look for role react main message
                 fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
+
                 if fetchMessage.embeds[0].author.name == 'React for roles':
                     role_react_message_id = fetchMessage.id
                     role_react_message = await message.channel.fetch_message(role_react_message_id)
