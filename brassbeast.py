@@ -1,12 +1,10 @@
-import mysql.connector
 import discord
-import asyncio
 import json
-import os
 import logging
 import datetime
 import re
-
+from music import *
+from database import *
 
 class ScheduleBot(discord.Client):
 
@@ -20,21 +18,6 @@ class ScheduleBot(discord.Client):
     async def on_server_join(self, server):
         logger.info(f'Joined new server: "{server.name}" (id: {server.id}, members: {server.member_count})')
 
-    def db_insert(self, sql, values):
-        mycursor = database.cursor()
-        mycursor.execute(f"""set @@session.time_zone = '{credentials['sql_details']['time_zone']}'""")
-        mycursor.execute(sql, values)
-        database.commit()
-        mycursor.close()
-
-    def db_select(self, sql, values):
-        mycursor = database.cursor()
-        mycursor.execute(f"""set @@session.time_zone = '{credentials['sql_details']['time_zone']}'""")
-        mycursor.execute(sql, values)
-        result = mycursor.fetchall()
-        mycursor.close()
-        return result
-
     async def on_message(self, message):
         # Don't respond to message from itself
         if message.author == self.user:
@@ -43,10 +26,16 @@ class ScheduleBot(discord.Client):
         if message.author.bot:
             return
 
-        bot_message_prefix = '!brassbeast'
-        if message.content.startswith(bot_message_prefix):
-            args = message.content[len(bot_message_prefix) + 1:].split(' ')
-            command = args[0]
+        bot_message_prefix_list = ['!bb', '!brassbeast']
+        if message.content.startswith(tuple(bot_message_prefix_list)):
+            args = message.content.split(' ')
+
+            try:
+                command = args[1]
+            except IndexError:
+                command = ''
+                await message.channel.send('Incorrect command.')
+
             if command == 'help':
                 help_message = (':robot: **Brass Beast Heavy**\n\n'
                                 'Brass Beast Heavy is firing backwards into spawn.\n'
@@ -94,7 +83,7 @@ class ScheduleBot(discord.Client):
                 # Delete original message
                 await message.delete()
             elif command == 'addrole':
-                content = " ".join(args[1:])
+                content = " ".join(args[2:])
                 role_emoji = content[0]
                 role_name = content[2:]
 
@@ -141,7 +130,7 @@ class ScheduleBot(discord.Client):
                     # Delete original message
                     await message.delete()
             elif command == 'removerole':
-                role_name_to_delete = " ".join(args[1:])
+                role_name_to_delete = " ".join(args[2:])
 
                 list_of_protected_roles = [
                     'Admins',
@@ -203,7 +192,7 @@ class ScheduleBot(discord.Client):
                 await message.delete()
 
                 # Send DMs
-                list_of_members_to_dm = args[1:]
+                list_of_members_to_dm = args[2:]
                 for member_to_dm in list_of_members_to_dm:
                     member_to_dm_id = int(re.search(r'\d+', member_to_dm).group(0))
                     member_to_dm_user = await self.fetch_user(member_to_dm_id)
@@ -211,17 +200,91 @@ class ScheduleBot(discord.Client):
                     if not member_to_dm_user.bot:
                         logger.info(f'Sent DM to {member_to_dm_user}')
                         await member_to_dm_user.send(dm_message)
+            elif command == 'play':
+                allow_list_servers = credentials['allow_list_servers']
+                allow_list_servers = {int(key): value for key, value in allow_list_servers.items()}
+
+                try:
+                    url = args[2]
+                    # Check URL domain
+                    yt_url_regex = r'.*www\.youtube\.com\/watch\?v=.*|.*youtu\.be\/.*'
+                    yt_url_match = re.match(yt_url_regex, url)
+                    if message.channel.id != allow_list_servers[message.guild.id]['music_channel']:
+                        incorrect_channel_message = f'Incorrect channel, try <#{allow_list_servers[message.guild.id]["music_channel"]}>.'
+                        await message.channel.send(incorrect_channel_message)
+                    elif yt_url_match:
+                        await self.join_voice_channel(message, url)
+                    else:
+                        incorrect_url_message = 'Incorrect URL, make sure it\'s a `youtube.com` or `youtu.be` link.'
+                        await message.channel.send(incorrect_url_message)
+                except IndexError:
+                    await message.channel.send(incorrect_url_message)
+            elif command == 'stop':
+                await self.stop_music(message)
             else:
                 logger.info(f'Invalid command in server {message.guild.id}. Attempted message: "{message.content}"')
 
+        # Flag warning if trying to use old music prefix
+        old_pancake_prefix_list = ['p!', '!play']
+        if message.content.startswith(tuple(old_pancake_prefix_list)):
+            await message.channel.send(
+                ':pancakes: :wave: Pancake is no more! ' \
+                'Use `!bb play` or `!bb stop` to play / stop music. ' \
+                'Example: `!bb play https://www.youtube.com/watch?v=2yf35s55Uyg`'
+            )
+
         # Log to server
-        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        sql = f"""
-        insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
-        """
-        val = (current_time, message.guild.id, 'message', message.author.id, message.author.display_name, message.channel.id)
+        add_log_entry(datetime.datetime.now(), message.guild.id, 'message', message.author.id, message.author.display_name, message.channel.id)
         logger.info(f'Logged message in server {message.guild.id}')
-        self.db_insert(sql, val)
+
+    async def join_voice_channel(self, message, url):
+        if message.author.voice:
+            destination = message.author.voice.channel
+            if destination:
+                bot_connection = message.author.guild.voice_client
+                if bot_connection:
+                    # Move to new channel if bot was connected to a previous one
+                    await bot_connection.move_to(destination)
+                else:
+                    # If bot was not connected, connect it
+                    await destination.connect()
+            await self.play_music(message, url)
+        else:
+            await message.channel.send('Need to be in a voice channel.')
+        return
+
+    async def play_music(self, message, url):
+        try:
+            source = await YTDLSource.create_source(message, url)
+        except YTDLError as e:
+            await message.channel.send(
+                'An error occurred while processing this request: {}'.format(str(e)))
+        else:
+            now_playing = discord.FFmpegPCMAudio(source.stream_url, **YTDLSource.FFMPEG_OPTIONS)
+            voice_client = message.author.guild.voice_client
+
+            if voice_client:
+                # Stops current playing song if there is one
+                voice_client.stop()
+                # Starts playing song
+                voice_client.play(now_playing)
+
+                await message.channel.send('Playing {}'.format(str(source)))
+
+            while voice_client.is_playing():
+                await asyncio.sleep(1)
+            await voice_client.disconnect()
+
+    async def stop_music(self, message):
+        voice_client = message.author.guild.voice_client
+        if not voice_client:
+            await message.channel.send('I\'m not in a voice channel.')
+        elif message.author.voice:
+            voice_client.stop()
+            await voice_client.disconnect()
+        else:
+            await message.channel.send('Need to be in a voice channel.')
+        return
 
     async def on_voice_state_update(self, member, before, after):
         # Don't listen to other bots
@@ -231,27 +294,25 @@ class ScheduleBot(discord.Client):
         # Joined voice channel
         if before.channel is None and after.channel is not None:
             # Log to server
-            current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            sql = f"""
-                insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
-                """
-            val = (current_time, after.channel.guild.id, 'voice', member.id, member.display_name, after.channel.id)
+            add_log_entry(datetime.datetime.now(), after.channel.guild.id, 'voice', member.id, member.display_name, after.channel.id)
             logger.info(f'Logged voice in server {after.channel.guild.id}')
-            self.db_insert(sql, val)
+
+        # User leaves voice channel
+        if before.channel is not None:
+            bot_connection = before.channel.guild.voice_client
+            if bot_connection:
+                members_in_voice_channel = before.channel.members
+                count_non_bots_in_voice_channel = 0
+                for voice_chatter in members_in_voice_channel:
+                    if not voice_chatter.bot:
+                        count_non_bots_in_voice_channel += 1
+                if count_non_bots_in_voice_channel == 0:
+                    await bot_connection.disconnect()
 
     async def on_member_join(self, member):
-        # Don't listen to other bots
-        if member.bot:
-           return
-
         # Log to server
-        current_time = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        sql = f"""
-            insert into {credentials['sql_details']['table_name']} (datetime, server, action, user_id, user_name, channel) values (%s, %s, %s, %s, %s, %s)
-            """
-        val = (current_time, member.guild.id, 'join', member.id, member.display_name, None)
+        add_log_entry(datetime.datetime.now(), member.guild.id, 'join', member.id, member.display_name, None)
         logger.info(f'Logged join to server {member.guild.id}')
-        self.db_insert(sql, val)
 
         # If Brass Beast server or sandbox server
         allow_list_servers = credentials['allow_list_servers']
@@ -345,32 +406,21 @@ class ScheduleBot(discord.Client):
             embed.set_footer(text=f'Invite ID: {invite_code}')
             await invite_notification_channel.send(embed=embed)
 
-if os.path.isfile('credentials.json'):
-    with open('credentials.json') as credentials_file:
-        intents = discord.Intents.default()
-        intents.members = True
+with open('credentials.json') as credentials_file:
+    intents = discord.Intents.default()
+    intents.members = True
 
-        credentials = json.loads(credentials_file.read())
+    credentials = json.loads(credentials_file.read())
 
-        # Logging
-        formatter = logging.Formatter('%(asctime)s [%(levelname)s]: %(message)s')
-        handler = logging.FileHandler('bot.log')
-        handler.setFormatter(formatter)
-        logger = logging.getLogger(__name__)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
+    # Logging
+    formatter = logging.Formatter('%(asctime)s [%(levelname)s]: %(message)s')
+    handler = logging.FileHandler('bot.log')
+    handler.setFormatter(formatter)
+    logger = logging.getLogger(__name__)
+    logger.addHandler(handler)
+    logger.setLevel(logging.INFO)
 
-        # Database
-        database = mysql.connector.connect(
-            host=credentials['sql_details']['host'],
-            user=credentials['sql_details']['username'],
-            passwd=credentials['sql_details']['pw'],
-            database=credentials['sql_details']['db_name']
-        )
-
-        bot = ScheduleBot(intents=intents)
-        application = bot
-        bot.run(credentials['discord']['bot_token'])
-else:
-    logger.info(f'Could not find credentials.json')
+    bot = ScheduleBot(intents=intents)
+    application = bot
+    bot.run(credentials['discord']['bot_token'])
 
