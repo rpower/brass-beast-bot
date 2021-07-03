@@ -88,7 +88,7 @@ class ScheduleBot(discord.Client):
                 role_name = content[2:]
 
                 # Create role
-                await message.guild.create_role(name=role_name)
+                await message.guild.create_role(name=role_name, mentionable=True)
                 newly_created_role = discord.utils.get(message.guild.roles, name=role_name)
                 # Look for role react main message
                 fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
