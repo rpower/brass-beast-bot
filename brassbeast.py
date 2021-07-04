@@ -111,7 +111,7 @@ class ScheduleBot(discord.Client):
 
                     # Add text channel
                     # Convert role name into text channel name
-                    new_role_channel_name = role_name.lower().replace(' ', '_')
+                    new_role_channel_name = role_name.lower().replace(' ', '-')
 
                     # Get 'Vidya Game' text channel category
                     new_role_channel_category_name = 'Vidya Games'
