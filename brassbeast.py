@@ -238,6 +238,7 @@ class ScheduleBot(discord.Client):
         logger.info(f'Logged message in server {message.guild.id}')
 
     async def join_voice_channel(self, message, url):
+        logger.info(f'Trying to play music in server {message.guild.id}')
         if message.author.voice:
             destination = message.author.voice.channel
             if destination:
@@ -248,7 +249,15 @@ class ScheduleBot(discord.Client):
                 else:
                     # If bot was not connected, connect it
                     await destination.connect()
-            await self.play_music(message, url)
+            try:
+                await self.play_music(message, url)
+            except Exception as e:
+                logger.info(f'Error playing message in server {message.guild.id}. Error: {e}')
+                await message.channel.send(f'Couldn\'t play music: {e}')
+                try:
+                    await message.author.guild.voice_client.disconnect()
+                except Exception as e:
+                    logger.info(f'Error leaving voice channel in server {message.guild.id}. Error: {e}')
         else:
             await message.channel.send('Need to be in a voice channel.')
         return
