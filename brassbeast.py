@@ -282,7 +282,11 @@ class ScheduleBot(discord.Client):
 
             while voice_client.is_playing():
                 await asyncio.sleep(1)
-            await voice_client.disconnect()
+            try:
+                await voice_client.disconnect()
+                voice_client.stop()
+            except AttributeError:
+                pass
 
     async def stop_music(self, message):
         voice_client = message.author.guild.voice_client
