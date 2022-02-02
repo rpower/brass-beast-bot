@@ -218,9 +218,10 @@ class ScheduleBot(discord.Client):
 
                         for role in roles_in_message:
                             logger.info(f'Cleaning up. role = {role}')
-                            role_id_in_message = re.match('.*<@&(.*)>.*', role).group(1)
-                            if role_id_in_message not in list_of_roles_ids_in_server:
-                                roles_in_message.remove(role)
+                            if role != '':
+                                role_id_in_message = re.match('.*<@&(.*)>.*', role).group(1)
+                                if role_id_in_message not in list_of_roles_ids_in_server:
+                                    roles_in_message.remove(role)
 
                         new_description = original_message_contents + roles_in_message
                         new_description = '\n'.join(new_description)
