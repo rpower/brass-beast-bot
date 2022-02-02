@@ -73,7 +73,12 @@ class ScheduleBot(discord.Client):
                 description = 'React to this message for roles\n\n' + roles_to_add_to_description
                 embed = discord.Embed(color=12745742, description=description)
                 embed.set_author(name='React for roles')
-                embed.set_footer(text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                embed.set_footer(text='')
+                embed.add_field(
+                    name='How do I add a role?',
+                    value='https://github.com/rpower/brass-beast-bot',
+                    inline=False
+                )
                 new_message = await message.channel.send(embed=embed)
 
                 # Add reactions to original message
@@ -105,8 +110,12 @@ class ScheduleBot(discord.Client):
                     new_description = '\n'.join(new_description)
                     embed = discord.Embed(color=12745742, description=new_description)
                     embed.set_author(name='React for roles')
-                    embed.set_footer(
-                        text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                    embed.set_footer(text='')
+                    embed.add_field(
+                        name='How do I add a role?',
+                        value='https://github.com/rpower/brass-beast-bot',
+                        inline=False
+                    )
                     await role_react_message.edit(embed=embed)
 
                     # Add text channel
@@ -176,12 +185,58 @@ class ScheduleBot(discord.Client):
                     new_description = '\n'.join(new_description)
                     embed = discord.Embed(color=12745742, description=new_description)
                     embed.set_author(name='React for roles')
-                    embed.set_footer(
-                        text="Use !brassbeast addrole [emoji] [role name] or !brassbeast removerole [role name] to add or remove roles from this list")
+                    embed.set_footer(text='')
+                    embed.add_field(
+                        name='How do I add a role?',
+                        value='https://github.com/rpower/brass-beast-bot',
+                        inline=False
+                    )
                     await role_react_message.edit(embed=embed)
 
                 # Delete original message
                 await message.delete()
+            elif command == 'cleanup':
+                try:
+                    # Look for role react main message
+                    fetchMessage = await message.channel.history().find(lambda m: (m.author == self.user))
+
+                    if fetchMessage.embeds[0].author.name == 'React for roles':
+                        role_react_message_id = fetchMessage.id
+                        role_react_message = await message.channel.fetch_message(role_react_message_id)
+                        role_react_message_contents = role_react_message.embeds[0].description
+
+                        original_message_contents = role_react_message_contents.split('\n')[:1]
+                        roles_in_message = role_react_message_contents.split('\n')[1:]
+                        list_of_roles = message.guild.roles
+                        list_of_roles_ids_in_server = []
+
+                        for role in list_of_roles:
+                            list_of_roles_ids_in_server.append(str(role.id))
+
+                        logger.info(f'Cleaning up. roles_in_message = {roles_in_message}')
+                        logger.info(f'Cleaning up. list_of_roles_ids_in_server = {list_of_roles_ids_in_server}')
+
+                        for role in roles_in_message:
+                            logger.info(f'Cleaning up. role = {role}')
+                            role_id_in_message = re.match('.*<@&(.*)>.*', role).group(1)
+                            if role_id_in_message not in list_of_roles_ids_in_server:
+                                roles_in_message.remove(role)
+
+                        new_description = original_message_contents + roles_in_message
+                        new_description = '\n'.join(new_description)
+                        embed = discord.Embed(color=12745742, description=new_description)
+                        embed.set_author(name='React for roles')
+                        embed.set_footer(text='')
+                        embed.add_field(
+                            name = 'How do I add a role?',
+                            value = 'https://github.com/rpower/brass-beast-bot',
+                            inline = False
+                        )
+                        await role_react_message.edit(embed=embed)
+                    # Delete original message
+                    await message.delete()
+                except Exception as e:
+                    logger.info(f'Error cleaning up in {message.guild.id}. Error: {e}')
             elif command == 'sendmemberdm':
                 dm_message = ('Hey! :wave:\n\n'
                               'This is just a friendly automated message from one of the bots on the **TF2 Brass Beasts Heavies** Discord server. In the last 2 months you haven\'t used any of the text chats or the voice chats.\n\n'
