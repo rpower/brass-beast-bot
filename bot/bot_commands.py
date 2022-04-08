@@ -225,13 +225,14 @@ async def cleanup_roles_message(ctx):
         logger.info(f'Error cleaning up roles message in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '
                     f'for member "{ctx.message.author.name}" (id: {ctx.message.author.id}). Error: {e}')
 
-async def send_invite_notification(bot, payload, allowed_channel_ids):
+async def send_invite_notification(payload, allowed_channel_ids):
     invite_creator = payload.inviter
     invite_code = payload.id
+    invite_guild = payload.guild
 
     for channel_id in allowed_channel_ids:
         channel_id = int(channel_id)
-        notification_channel = bot.get_channel(channel_id)
+        notification_channel = invite_guild.get_channel(channel_id)
         if notification_channel:
             # Send notification in channel
             embed = disnake.Embed(color=255, description=f'{invite_creator.mention} {invite_creator}')
@@ -241,10 +242,12 @@ async def send_invite_notification(bot, payload, allowed_channel_ids):
             await notification_channel.send(embed=embed)
             logger.info(f'Invite created by member "{invite_creator}"')
 
-async def send_new_member_notification(bot, member, allowed_channel_ids, new_role_ids):
+async def send_new_member_notification(member, allowed_channel_ids, new_role_ids):
+    member_guild = member.guild
+
     for channel_id in allowed_channel_ids:
         channel_id = int(channel_id)
-        notification_channel = bot.get_channel(channel_id)
+        notification_channel = member_guild.get_channel(channel_id)
         if notification_channel:
             # Send notification in channel
             embed = disnake.Embed(color = 12745742, description = f'{member.mention} {member}')

@@ -45,11 +45,11 @@ async def on_guild_join(guild):
 
 @bot.event
 async def on_invite_create(payload):
-    await bot_commands.send_invite_notification(bot, payload, BOT_NOTIFICATIONS_CHANNEL_IDS)
+    await bot_commands.send_invite_notification(payload, BOT_NOTIFICATIONS_CHANNEL_IDS)
 
 @bot.event
 async def on_member_join(member):
-    await bot_commands.send_new_member_notification(bot, member, BOT_NOTIFICATIONS_CHANNEL_IDS, NEW_ROLE_IDS)
+    await bot_commands.send_new_member_notification(member, BOT_NOTIFICATIONS_CHANNEL_IDS, NEW_ROLE_IDS)
 
 @bot.event
 async def on_raw_reaction_add(payload):
