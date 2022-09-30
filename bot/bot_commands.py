@@ -13,17 +13,27 @@ logger.setLevel(logging.INFO)
 
 github_link = 'https://github.com/rpower/brass-beast-bot'
 
-async def display_help_message(ctx):
+async def display_help_message(ctx, slash_command=False):
     embed_title = ':robot: Brass Beast Heavy'
     embed_description = f"""
         Brass Beast Heavy is firing backwards into spawn.
+        
+        **COMMANDS**
+        `/bb help` - Show help message.
+        `/bb play https://www.youtube.com/watch?v=6lgo08Sg-fw` - Play YouTube video in voice chat.
+        `/bb stop` - Stops anything playing.
 
         Information and examples: {github_link}
         """
-    embed = disnake.Embed(title=embed_title, description=embed_description)
-    logger.info(f'Listed help message in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '
-                f'for member "{ctx.message.author.name}" (id: {ctx.message.author.id})')
-    await ctx.message.channel.send(embed=embed)
+    embed = disnake.Embed(title=embed_title, description=embed_description, color=disnake.Colour.from_rgb(252, 186, 3))
+    if slash_command:
+        logger.info(f'Listed help message in server "{ctx.guild.name}" (id: {ctx.guild.id}) '
+                    f'for member "{ctx.author.name}" (id: {ctx.author.id})')
+        await ctx.send(embed=embed)
+    else:
+        logger.info(f'Listed help message in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '
+                    f'for member "{ctx.message.author.name}" (id: {ctx.message.author.id})')
+        await ctx.message.channel.send(embed=embed)
 
 async def generate_roles_message(ctx):
     logger.info(f'Generating roles message in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '

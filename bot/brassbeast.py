@@ -36,7 +36,7 @@ async def on_ready():
         logger.info(f'Logged into server: "{guild.name}" (id: {guild.id}, members: {guild.member_count})')
     await bot.change_presence(activity=disnake.Activity(
         type=disnake.ActivityType.listening,
-        name=f"!{bot_command_prefix} help"
+        name=f"/{bot_command_prefix} help"
     ))
 
 @bot.event
@@ -69,6 +69,7 @@ async def on_voice_state_update(member, before, after):
     await database.log_voice(member, before, after)
     await music.check_for_listeners(before)
 
+# Legacy commands
 @bot.command()
 async def help(ctx):
     await bot_commands.display_help_message(ctx)
@@ -96,6 +97,23 @@ async def play(ctx, arg1):
 @bot.command()
 async def stop(ctx):
     await music.stop_music(ctx)
+
+# Slash commands
+@bot.slash_command()
+async def bb(inter):
+    pass
+
+@bb.sub_command(description='Get help on Brass Beast commands')
+async def help(ctx):
+    await bot_commands.display_help_message(ctx, slash_command=True)
+
+@bb.sub_command(description='Play YouTube link')
+async def play(inter, youtube_url: str):
+    await music.check_music(bot, inter, youtube_url, MUSIC_CHANNEL_IDS, slash_command=True)
+
+@bb.sub_command(description='Stops any videos')
+async def stop(ctx):
+    await music.stop_music(ctx, slash_command=True)
 
 bot.run(BOT_TOKEN)
 
