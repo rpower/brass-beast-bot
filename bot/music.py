@@ -1,3 +1,5 @@
+import os
+import sys
 import yt_dlp
 import re
 import disnake
@@ -199,7 +201,9 @@ async def join_voice_channel(ctx, youtube_url, slash_command=False):
                 logger.info(f'Error playing message in server {ctx.guild.id}. Error: {e}')
                 await ctx.send(f'Couldn\'t play music: {e}')
                 try:
-                    await ctx.author.guild.voice_client.disconnect()
+                    # await ctx.author.guild.voice_client.disconnect()
+                    await ctx.send('Rebooting, give me a minute...')
+                    os.execv(sys.executable, ['python'] + sys.argv)
                 except Exception as e:
                     logger.info(f'Error leaving voice channel in server {ctx.guild.id}. Error: {e}')
         else:
