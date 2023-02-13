@@ -131,6 +131,61 @@ async def add_role(ctx, emoji, role_name):
     logger.info(f'Adding role "{role_name}" in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '
                 f'for member "{ctx.message.author.name}" (id: {ctx.message.author.id})')
 
+async def add_role_slash(ctx, role_name, role_emoji):
+    # Create role
+    await ctx.guild.create_role(name=role_name, mentionable=True)
+    newly_created_role = disnake.utils.get(ctx.guild.roles, name=role_name)
+    # Look for role react main message
+    fetch_message = await ctx.channel.history().find(lambda m: (m.author.id == m.guild.me.id))
+    if fetch_message.embeds[0].author.name == 'React for roles':
+        role_react_message_id = fetch_message.id
+        role_react_message = await ctx.channel.fetch_message(role_react_message_id)
+        role_react_message_contents = role_react_message.embeds[0].description
+
+        original_message_contents = role_react_message_contents.split('\n')[:2]
+        roles_in_message = role_react_message_contents.split('\n')[2:]
+        roles_in_message.append(role_emoji + ' ' + newly_created_role.mention)
+
+        new_description = original_message_contents + roles_in_message
+        new_description = '\n'.join(new_description)
+        embed = disnake.Embed(color=12745742, description=new_description)
+        embed.set_author(name='React for roles')
+        embed.set_footer(text='')
+        embed.add_field(
+            name='How do I add a role?',
+            value=f'{github_link}',
+            inline=False
+        )
+        await role_react_message.edit(embed=embed)
+
+        # Add reaction to roles message
+        await role_react_message.add_reaction(role_emoji)
+
+        # Add text channel
+        # Convert role name into text channel name
+        new_role_channel_name = role_name.lower().replace(' ', '-')
+
+        # Get 'Vidya Game' text channel category
+        new_role_channel_category_name = 'Vidya Games'
+        new_role_channel_category = disnake.utils.get(ctx.guild.categories, name=new_role_channel_category_name)
+
+        # Create text channel
+        overwrites = {
+            ctx.guild.default_role: disnake.PermissionOverwrite(read_messages=False),
+            newly_created_role: disnake.PermissionOverwrite(read_messages=True)
+        }
+        await ctx.guild.create_text_channel(
+            new_role_channel_name,
+            category=new_role_channel_category,
+            overwrites=overwrites
+        )
+
+        response = f'Added role {role_name}.'
+        await ctx.send(response, ephemeral=True)
+
+    logger.info(f'Adding role "{role_name}" in server "{ctx.guild.name}" (id: {ctx.guild.id}) '
+                f'for member "{ctx.author.name}" (id: {ctx.author.id})')
+
 async def remove_role(ctx, role_name):
     # Delete original message
     await ctx.message.delete()
@@ -189,6 +244,65 @@ async def remove_role(ctx, role_name):
 
     logger.info(f'Removing role "{role_name}" in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '
                 f'for member "{ctx.message.author.name}" (id: {ctx.message.author.id})')
+
+async def remove_role_slash(ctx, role_name):
+    list_of_protected_roles = [
+        'Admins',
+        'Heavies',
+        'Brass Beast Heavy',
+        'Pancake',
+        'Server Booster',
+        'Randos',
+        'Event Scheduler',
+        '@everyone'
+    ]
+
+    # If role to delete is in protected list, then ignore
+    if role_name in list_of_protected_roles:
+        return
+
+    # Look for role react main message
+    fetch_message = await ctx.channel.history().find(lambda m: (m.author.id == m.guild.me.id))
+
+    if fetch_message.embeds[0].author.name == 'React for roles':
+        role_react_message_id = fetch_message.id
+        role_react_message = await ctx.channel.fetch_message(role_react_message_id)
+        role_react_message_contents = role_react_message.embeds[0].description
+
+        original_message_contents = role_react_message_contents.split('\n')[:1]
+        roles_in_message = role_react_message_contents.split('\n')[1:]
+
+        list_of_roles = ctx.guild.roles
+        for role in list_of_roles:
+            if role.name == role_name:
+                role_id_to_remove = str(role.id)
+                # Remove role
+                await role.delete()
+                for role in roles_in_message:
+                    if role_id_to_remove in role:
+                        roles_in_message.remove(role)
+
+                        # Clear reactions
+                        emoji_to_remove = role[0]
+                        await role_react_message.clear_reaction(emoji_to_remove)
+
+        new_description = original_message_contents + roles_in_message
+        new_description = '\n'.join(new_description)
+        embed = disnake.Embed(color=12745742, description=new_description)
+        embed.set_author(name='React for roles')
+        embed.set_footer(text='')
+        embed.add_field(
+            name='How do I add a role?',
+            value=f'{github_link}',
+            inline=False
+        )
+        await role_react_message.edit(embed=embed)
+
+        response = f'Removed role {role_name}.'
+        await ctx.send(response, ephemeral=True)
+
+    logger.info(f'Removing role "{role_name}" in server "{ctx.guild.name}" (id: {ctx.guild.id}) '
+                f'for member "{ctx.author.name}" (id: {ctx.author.id})')
 
 async def cleanup_roles_message(ctx):
     logger.info(f'Cleaning up roles message in server "{ctx.message.guild.name}" (id: {ctx.message.guild.id}) '

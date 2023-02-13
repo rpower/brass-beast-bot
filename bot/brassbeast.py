@@ -115,5 +115,13 @@ async def play(inter, youtube_url: str):
 async def stop(ctx):
     await music.stop_music(ctx, slash_command=True)
 
+@bb.sub_command(description='Add role to server')
+async def addrole(ctx, role_name: str, role_emoji: str):
+    await bot_commands.add_role_slash(ctx, role_name, role_emoji)
+
+@bb.sub_command(description='Remove role to server (but keep text channel)')
+async def removerole(ctx, role_name: str):
+    await bot_commands.remove_role_slash(ctx, role_name)
+
 bot.run(BOT_TOKEN)
 
